@@ -48,4 +48,6 @@ const signVerificationMiddleware = (slackSigningSecret) => (req, res, next) => {
     }
 }
 
-module.exports = signVerificationMiddleware;
+module.exports = {
+    signVerificationMiddleware,
+}

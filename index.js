@@ -3,7 +3,8 @@ require('dotenv').config()
 const express = require('express')
 const morgan = require('morgan')
 const bodyParser = require('body-parser')
-const signVerificationMiddleware = require('./verify_sign')
+const { signVerificationMiddleware } = require('./verify_sign')
+const { getLDConfiguration } = require('./launchdarkly_api_call')
 
 const {
     SIGNING_SECRET,
@@ -47,6 +48,21 @@ app.route('/beepboop')
             response_type: 'ephemeral',
             text: '作業中です',
         })
+
+        getLDConfiguration(LD_API_KEY).
+            then(({ flag_items_with_prereqs, flat_mapping }) => {
+                web.chat.postMessage({
+                    channel: req.body.channel_id,
+                    text: `Fetched flags from LD as expected! Flags with pre-reqs ${flag_items_with_prereqs.length}!`,
+                })
+                console.log(flag_items_with_prereqs, flat_mapping);
+            }, (error) => {
+                console.log('Error: ', error);
+                web.chat.postMessage({
+                    channel: req.body.channel_id,
+                    text: 'There was an error while trying to call the LaunchDarkly API',
+                })
+            })
     })
 
 app.listen(3000, (err) => {
