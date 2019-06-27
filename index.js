@@ -1,10 +1,16 @@
 require('dotenv').config()
 
+const {
+    createReadStream,
+    promises: fsPromises,
+} = require('fs');
+
 const express = require('express')
 const morgan = require('morgan')
-const bodyParser = require('body-parser')
+
 const { signVerificationMiddleware } = require('./verify_sign')
 const { getLDConfiguration } = require('./launchdarkly_api_call')
+const { gen_digraph } = require('./gen_digraph')
 
 const {
     SIGNING_SECRET,
@@ -44,27 +50,56 @@ app.route('/beepboop')
             text: 'I will post the pre-requisites graph to this channel _soon_',
         })
 
-        res.json({
-            response_type: 'ephemeral',
-            text: '作業中です',
-        })
+        const FORMAT = 'svg';
+        const FILENAME = 't1.svg';
 
         getLDConfiguration(LD_API_KEY).
             then(({ flag_items_with_prereqs, flat_mapping }) => {
+                const num_flags = flag_items_with_prereqs.length;
+                const num_relations = flat_mapping.length;
+                const premessage = [
+                    'Fetched flags from LD as expected! Preparing the graph file!',
+                    `${num_flags} flags with ${num_relations} pre-requisite relations!`,
+                ].join('\n')
+
                 web.chat.postMessage({
                     channel: req.body.channel_id,
-                    text: `Fetched flags from LD as expected! Flags with pre-reqs ${flag_items_with_prereqs.length}!`,
+                    text: premessage,
                 })
-                console.log(flag_items_with_prereqs, flat_mapping);
+
+                const { digraph } = gen_digraph({ flag_items_with_prereqs, flat_mapping })
+
+                return digraph
             }, (error) => {
                 console.log('Error: ', error);
                 web.chat.postMessage({
                     channel: req.body.channel_id,
                     text: 'There was an error while trying to call the LaunchDarkly API',
                 })
+            }).
+            then(async (digraph) => {
+                rendered = await new Promise((accept, reject) => {
+                // TODO: Take format from the given command;
+                    digraph.output(FORMAT, (rendered) => {
+                        accept(rendered)
+                    })
+                })
+                return rendered
+            }).
+            then(async (rendered) => {
+                result = await web.files.upload({
+                    channels: req.body.channel_id,
+                    // TODO: Use a human readable filename here: example:
+                    // LD-US-PREREQ-2019-06-24-09-21-JST.svg
+                    filename: FILENAME,
+                    filetype: FORMAT,
+                    file: rendered,
+                })
+
+                console.log('File uploaded: ', result.file.id)
             })
     })
 
 app.listen(3000, (err) => {
-    console.log("Listening on port 3000")
+    console.log('Listening on port 3000')
 })

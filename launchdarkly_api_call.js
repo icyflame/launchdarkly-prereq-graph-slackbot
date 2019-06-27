@@ -59,4 +59,5 @@ const getLDConfiguration = (LD_API_KEY) => {
 
 module.exports = {
     getLDConfiguration,
+    transform_flag_name,
 }
