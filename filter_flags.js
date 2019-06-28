@@ -55,7 +55,7 @@ const keep_interested_flags = ({ flag_items_with_prereqs, flat_mapping, wantFlag
 
         console.log(`start: ${flat_mapping.length}; wantFlags: ${wantFlags.length}, ${wantFlags}`)
 
-        const filtered_flat_mapping = filterWantFlags(flat_mapping, wantFlags, 0, wantDepth-1)
+        const filtered_flat_mapping = filterWantFlags(flat_mapping, wantFlags, 1, wantDepth)
 
         const filteredAllFlagsWanted = _.uniq(_.flatten(filtered_flat_mapping.map(f => [f.key, f.depends_on.key])))
 

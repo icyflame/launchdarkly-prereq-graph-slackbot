@@ -119,6 +119,7 @@ app.route('/beepboop')
                     const premessage = [
                         'Fetched flags from LD as expected! Preparing the graph file!',
                         `${num_flags} flags with ${num_relations} pre-requisite relations!`,
+                        `Output for: \`${req.body.command} ${req.body.text}\``,
                     ].join('\n')
 
                     web.chat.postMessage({
