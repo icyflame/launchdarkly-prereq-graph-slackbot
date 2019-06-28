@@ -49,7 +49,11 @@ const getLDConfiguration = (LD_API_KEY) => {
                 create_label_for_flag[f] = true
             })
 
-            const flag_items_with_prereqs = flags.items.filter(flag => create_label_for_flag[transform_flag_name(flag.key)])
+            let flag_items_with_prereqs = flags.items.filter(flag => create_label_for_flag[transform_flag_name(flag.key)])
+            flag_items_with_prereqs = flag_items_with_prereqs.map(f => ({
+                ...f,
+                key: transform_flag_name(f.key),
+            }))
 
             return { flag_items_with_prereqs, flat_mapping };
         }, (error) => {

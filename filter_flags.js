@@ -23,7 +23,7 @@ const keep_interested_flags = ({ flag_items_with_prereqs, flat_mapping, wantFlag
                 },
             },
         ]
-         **/
+        **/
 
         const filterWantFlags = (flat_mapping, wantFlags, call_count) => {
             if (flat_mapping.length === 0 || wantFlags === 0 || call_count > 10) {

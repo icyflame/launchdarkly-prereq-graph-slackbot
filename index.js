@@ -7,10 +7,12 @@ const {
 
 const express = require('express')
 const morgan = require('morgan')
+const _ = require('lodash')
 
 const { signVerificationMiddleware } = require('./verify_sign')
-const { getLDConfiguration } = require('./launchdarkly_api_call')
+const { transform_flag_name, getLDConfiguration } = require('./launchdarkly_api_call')
 const { gen_digraph } = require('./gen_digraph')
+const { keep_interested_flags } = require('./filter_flags')
 
 const {
     SIGNING_SECRET,
@@ -19,6 +21,32 @@ const {
     ALLOWED_USER,
     ALLOWED_CHANNEL,
 } = require('./get_env')
+
+const getHelpMessage = () => {
+    return [
+        'LaunchDarkly Pre-Requisites Bot',
+        '',
+        '> Connected to the US project',
+        '',
+        'Examples:',
+        '`/ld-prereqs help`',
+        ' => Print this help text',
+        '',
+        '`/ld-prereqs`',
+        ' => Return the pre-requisite graph of the complete US project',
+        '',
+        '`/ld-prereqs flag1;flag2;`',
+        ' => Return the pre-requisite subgraph which contains these flags',
+    ].join('\n');
+}
+
+const noPrereqMessage = (flags) => {
+    return [
+        'None of those flags have a pre-requisite or flags with these flags as a pre-requisite!',
+        'Flags checked: ',
+        ...flags.map(f => `- ${f}`)
+    ].join('\n');
+}
 
 const { WebClient } = require('@slack/web-api');
 const token = process.env.BOT_ACCESS_TOKEN;
@@ -45,6 +73,15 @@ app.route('/beepboop')
             return res.sendStatus(200)
         }
 
+        const inputText = req.body.text;
+
+        if (inputText === 'help') {
+            return res.json({
+                response_type: "ephemeral",
+                text: getHelpMessage(),
+            })
+        }
+
         web.chat.postMessage({
             channel: req.body.channel_id,
             text: 'I will post the pre-requisites graph to this channel _soon_',
@@ -65,50 +102,81 @@ app.route('/beepboop')
             now.getSeconds(),
         ].join('-') + '.svg';
 
+        let wantFlags = _.reject(req.body.text.split(';'), _.isEmpty);
+        wantFlags = wantFlags.map(transform_flag_name);
+
         (async () => {
             getLDConfiguration(LD_API_KEY).
-            then(({ flag_items_with_prereqs, flat_mapping }) => {
-                const num_flags = flag_items_with_prereqs.length;
-                const num_relations = flat_mapping.length;
-                const premessage = [
-                    'Fetched flags from LD as expected! Preparing the graph file!',
-                    `${num_flags} flags with ${num_relations} pre-requisite relations!`,
-                ].join('\n')
+                then(({ flag_items_with_prereqs, flat_mapping }) => {
+                    const num_flags = flag_items_with_prereqs.length;
+                    const num_relations = flat_mapping.length;
+                    const premessage = [
+                        'Fetched flags from LD as expected! Preparing the graph file!',
+                        `${num_flags} flags with ${num_relations} pre-requisite relations!`,
+                    ].join('\n')
 
-                web.chat.postMessage({
-                    channel: req.body.channel_id,
-                    text: premessage,
-                })
-
-                const { digraph } = gen_digraph({ flag_items_with_prereqs, flat_mapping })
-
-                return digraph
-            }, (error) => {
-                console.log('Error: ', error);
-                web.chat.postMessage({
-                    channel: req.body.channel_id,
-                    text: 'There was an error while trying to call the LaunchDarkly API',
-                })
-            }).
-            then(async (digraph) => {
-                rendered = await new Promise((accept, reject) => {
-                // TODO: Take format from the given command;
-                    digraph.output(FORMAT, (rendered) => {
-                        accept(rendered)
+                    web.chat.postMessage({
+                        channel: req.body.channel_id,
+                        text: premessage,
                     })
-                })
-                return rendered
-            }).
-            then(async (rendered) => {
-                result = await web.files.upload({
-                    channels: req.body.channel_id,
-                    filename: FILENAME,
-                    filetype: FORMAT,
-                    file: rendered,
-                })
 
-                console.log('File uploaded: ', result.file.id)
-            })
+                    const {
+                        filtered_flag_items,
+                        filtered_flat_mapping,
+                    } = keep_interested_flags({
+                        flag_items_with_prereqs,
+                        flat_mapping,
+                        wantFlags,
+                    })
+
+                    if (filtered_flag_items.length === 0) {
+                        web.chat.postMessage({
+                            channel: req.body.channel_id,
+                            text: noPrereqMessage(wantFlags),
+                        })
+                        return undefined
+                    }
+
+                    const { digraph } = gen_digraph({
+                        flag_items_with_prereqs: filtered_flag_items,
+                        flat_mapping: filtered_flat_mapping,
+                    })
+
+                    return digraph
+                }, (error) => {
+                    console.log('Error: ', error);
+                    web.chat.postMessage({
+                        channel: req.body.channel_id,
+                        text: 'There was an error while trying to call the LaunchDarkly API',
+                    })
+                }).
+                then(async (digraph) => {
+                    if (digraph === undefined) {
+                        return
+                    }
+
+                    rendered = await new Promise((accept, reject) => {
+                        // TODO: Take format from the given command;
+                        digraph.output(FORMAT, (rendered) => {
+                            accept(rendered)
+                        })
+                    })
+                    return rendered
+                }).
+                then(async (rendered) => {
+                    if (rendered === undefined) {
+                        return
+                    }
+
+                    result = await web.files.upload({
+                        channels: req.body.channel_id,
+                        filename: FILENAME,
+                        filetype: FORMAT,
+                        file: rendered,
+                    })
+
+                    console.log('File uploaded: ', result.file.id)
+                })
         })()
 
         res.sendStatus(200)
