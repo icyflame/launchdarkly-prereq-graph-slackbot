@@ -1,6 +1,8 @@
 const _ = require('lodash');
 
-const keep_interested_flags = ({ flag_items_with_prereqs, flat_mapping, wantFlags }) => {
+const keep_interested_flags = ({ flag_items_with_prereqs, flat_mapping, wantFlags, maxDepth }) => {
+    const wantDepth = _.isNaN(maxDepth) ? 10 : maxDepth;
+
     if (wantFlags.length > 0) {
         const flagsWithPrereqs = flag_items_with_prereqs.map(f => f.key)
 
@@ -25,8 +27,8 @@ const keep_interested_flags = ({ flag_items_with_prereqs, flat_mapping, wantFlag
         ]
         **/
 
-        const filterWantFlags = (flat_mapping, wantFlags, call_count) => {
-            if (flat_mapping.length === 0 || wantFlags === 0 || call_count > 10) {
+        const filterWantFlags = (flat_mapping, wantFlags, call_count, depth) => {
+            if (flat_mapping.length === 0 || wantFlags.length === 0 || call_count > depth) {
                 return []
             }
 
@@ -44,16 +46,16 @@ const keep_interested_flags = ({ flag_items_with_prereqs, flat_mapping, wantFlag
 
             const newWantFlags = _.reject(newWantedFlagsFull, f => _.indexOf(wantFlags, f) >= 0)
 
-            console.log(`call_count: ${call_count}, start: ${flat_mapping.length}, wantFlags: ${wantFlags.length}, select: ${want.length}, remain: ${remaining.length}, newFlags: ${newWantFlags.length}`)
+            console.log(`call_count: ${call_count}/${depth}, start: ${flat_mapping.length}, wantFlags: ${wantFlags.length}, select: ${want.length}, remain: ${remaining.length}, newFlags: ${newWantFlags.length}`)
 
             // Return the direct relations and the relations for every flag that just became
             // "wanted"
-            return [...want, ...filterWantFlags(remaining, newWantFlags, call_count+1)]
+            return [...want, ...filterWantFlags(remaining, newWantFlags, call_count+1, depth)]
         }
 
         console.log(`start: ${flat_mapping.length}; wantFlags: ${wantFlags.length}, ${wantFlags}`)
 
-        const filtered_flat_mapping = filterWantFlags(flat_mapping, wantFlags, 0)
+        const filtered_flat_mapping = filterWantFlags(flat_mapping, wantFlags, 0, wantDepth-1)
 
         const filteredAllFlagsWanted = _.uniq(_.flatten(filtered_flat_mapping.map(f => [f.key, f.depends_on.key])))
 

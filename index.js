@@ -22,6 +22,9 @@ const {
     ALLOWED_CHANNEL,
 } = require('./get_env')
 
+const DEFAULT_MAX_DEPTH = 10;
+const MAX_ALLOWED_DEPTH = 15;
+
 const getHelpMessage = () => {
     return [
         'LaunchDarkly Pre-Requisites Bot',
@@ -37,6 +40,9 @@ const getHelpMessage = () => {
         '',
         '`/ld-prereqs flag1;flag2;`',
         ' => Return the pre-requisite subgraph which contains these flags',
+        '',
+        '`/ld-prereqs flag1;flag2/2',
+        ' => Return the pre-requisite subgraph going upto 2 levels deep from these flags',
     ].join('\n');
 }
 
@@ -102,7 +108,15 @@ app.route('/beepboop')
             now.getSeconds(),
         ].join('-') + '.svg';
 
-        let wantFlags = _.reject(req.body.text.split(';'), _.isEmpty);
+        const components = _.reject(inputText.split('/'), _.isEmpty)
+
+        const flagsText = components.length >= 1 ? components[0] : '';
+
+        let maxDepth = components.length >= 2 ? parseInt(components[1], 10) : DEFAULT_MAX_DEPTH;
+        maxDepth = _.isNaN(maxDepth) ? DEFAULT_MAX_DEPTH : maxDepth;
+        maxDepth = maxDepth > MAX_ALLOWED_DEPTH ? DEFAULT_MAX_DEPTH : maxDepth;
+
+        let wantFlags = _.reject(flagsText.split(';'), _.isEmpty);
         wantFlags = wantFlags.map(transform_flag_name);
 
         (async () => {
@@ -127,6 +141,7 @@ app.route('/beepboop')
                         flag_items_with_prereqs,
                         flat_mapping,
                         wantFlags,
+                        maxDepth,
                     })
 
                     if (filtered_flag_items.length === 0) {
