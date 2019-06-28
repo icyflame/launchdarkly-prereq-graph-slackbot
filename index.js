@@ -51,9 +51,22 @@ app.route('/beepboop')
         })
 
         const FORMAT = 'svg';
-        const FILENAME = 't1.svg';
+        const now = new Date();
+        let FILENAME = [
+            'LD',
+            'US',
+            'PRE',
+            'REQS',
+            now.getFullYear(),
+            now.getMonth()+1,
+            now.getDate(),
+            now.getHours(),
+            now.getMinutes(),
+            now.getSeconds(),
+        ].join('-') + '.svg';
 
-        getLDConfiguration(LD_API_KEY).
+        (async () => {
+            getLDConfiguration(LD_API_KEY).
             then(({ flag_items_with_prereqs, flat_mapping }) => {
                 const num_flags = flag_items_with_prereqs.length;
                 const num_relations = flat_mapping.length;
@@ -89,8 +102,6 @@ app.route('/beepboop')
             then(async (rendered) => {
                 result = await web.files.upload({
                     channels: req.body.channel_id,
-                    // TODO: Use a human readable filename here: example:
-                    // LD-US-PREREQ-2019-06-24-09-21-JST.svg
                     filename: FILENAME,
                     filetype: FORMAT,
                     file: rendered,
@@ -98,6 +109,9 @@ app.route('/beepboop')
 
                 console.log('File uploaded: ', result.file.id)
             })
+        })()
+
+        res.sendStatus(200)
     })
 
 app.listen(3000, (err) => {
