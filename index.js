@@ -41,7 +41,7 @@ const getHelpMessage = () => {
         '`/ld-prereqs flag1;flag2;`',
         ' => Return the pre-requisite subgraph which contains these flags',
         '',
-        '`/ld-prereqs flag1;flag2/2',
+        '`/ld-prereqs flag1;flag2/2`',
         ' => Return the pre-requisite subgraph going upto 2 levels deep from these flags',
     ].join('\n');
 }
@@ -71,14 +71,6 @@ app.route('/beepboop')
         })
     })
     .post((req, res) => {
-        if (req.body.user_id !== ALLOWED_USER) {
-            return res.sendStatus(200)
-        }
-
-        if (req.body.channel_id !== ALLOWED_CHANNEL) {
-            return res.sendStatus(200)
-        }
-
         const inputText = req.body.text;
 
         if (inputText === 'help') {
